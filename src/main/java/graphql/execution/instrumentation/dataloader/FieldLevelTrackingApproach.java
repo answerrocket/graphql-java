@@ -287,6 +287,19 @@ public class FieldLevelTrackingApproach {
 
     void dispatch() {
         log.debug("Dispatching data loaders ({})", dataLoaderRegistry.getKeys());
-        dataLoaderRegistry.dispatchAll();
+        
+        // capture dispatch futures
+        CompletableFuture[] futures = dataLoaderRegistry.getDataLoaders()
+                .stream()
+                .map(DataLoader::dispatch)
+                .toArray(CompletableFuture[]::new);
+
+        // after all are completed, check dispatch depth
+        CompletableFuture.allOf(futures)
+                .thenRun(() -> {
+                    if (dataLoaderRegistry.getDataLoaders().stream().anyMatch(dl -> dl.dispatchDepth() > 0)) {
+                        this.dispatch(); // go again
+                    }
+                });
     }
 }
